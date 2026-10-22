@@ -1,0 +1,254 @@
+---
+title: "Fully penetrant within whose lifetime? Step-by-step calculations"
+author: "J. E. Vazquez"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "", fig.align = "center")
+options(digits = 6)
+```
+
+This document reproduces the calculations behind the paper *Fully Penetrant Within Whose Lifetime? Background Mortality and the Penetrance of Huntington's Disease Alleles*. Each section follows one step of Supplementary Methods S1, uses carriers of 40 CAG repeats in Mexico as the worked example, and checks the result against the outputs of the analysis scripts in `code/`. All code is base R; `knitr` is used only to print tables.
+
+# Data
+
+The main analysis uses the 2019 World Health Organization (WHO) life tables for both sexes: age-specific death rates ${}_n m_x$ (indicator `LIFE_0000000029`) and life expectancies $e_x$ (indicator `LIFE_0000000035`) for 14 countries. ${}_n m_x$ is the death rate in the age group that starts at age $x$ and spans $n$ years.
+
+```{r data}
+lt <- read.csv("code/data/who_life_tables.csv", stringsAsFactors = FALSE)
+lt <- lt[order(lt$country, lt$year, lt$age_start), ]
+table(lt$country, lt$year)
+knitr::kable(lt[lt$country == "MEX" & lt$year == 2019, ], row.names = FALSE,
+             caption = "WHO 2019 life table for Mexico, both sexes")
+```
+
+# Step 1: distribution of age at onset
+
+Following Langbehn et al. (2004), age at onset $T$ for a carrier of $c$ CAG repeats follows a logistic distribution with mean $\mu_c = 21.54 + \exp(9.556 - 0.1460c)$ and variance $\sigma_c^2 = 35.55 + \exp(17.72 - 0.3269c)$. The logistic scale parameter is $s_c = \sigma_c\sqrt{3}/\pi$.
+
+```{r step1}
+langbehn <- function(cag, sd_scale = 1) {
+  mu <- 21.54 + exp(9.556 - 0.1460 * cag)
+  sigma <- sqrt(35.55 + exp(17.72 - 0.3269 * cag)) * sd_scale
+  s <- sigma * sqrt(3) / pi
+  list(mu = mu, sigma = sigma, s = s,
+       cdf = function(t) plogis(t, location = mu, scale = s),
+       pdf = function(t) dlogis(t, location = mu, scale = s))
+}
+m40 <- langbehn(40)
+c(mu = m40$mu, sigma = m40$sigma, scale = m40$s)
+```
+
+# Step 2: net penetrance among carriers alive at age 18
+
+Net penetrance is the conditional probability of onset by age $t$ given no onset by $a_0 = 18$:
+$$N_c(t) = P(T \le t \mid T > a_0) = \frac{F_c(t) - F_c(a_0)}{1 - F_c(a_0)},$$
+and its derivative, $g_c(t) = f_c(t)/[1 - F_c(a_0)]$, is the density of onset age among those carriers.
+
+```{r step2}
+a0 <- 18
+net_pen <- function(cag, t, a0 = 18, sd_scale = 1) {
+  m <- langbehn(cag, sd_scale)
+  (m$cdf(t) - m$cdf(a0)) / (1 - m$cdf(a0))
+}
+c(F40_at_18 = m40$cdf(18), net_by_65 = net_pen(40, 65), net_by_75 = net_pen(40, 75),
+  net_by_85 = net_pen(40, 85))
+## The conditional density integrates to 1 over [18, infinity)
+integrate(function(t) m40$pdf(t) / (1 - m40$cdf(a0)), a0, Inf)$value
+```
+
+# Step 3: background mortality as a piecewise-constant hazard
+
+Each WHO rate is treated as a constant hazard within its age group, and the rate for ages 85 and older applies from 85 onward: $h_k(t) = {}_n m_x$ for $x \le t < x + n$.
+
+```{r step3}
+breaks <- c(0, 1, seq(5, 85, 5))
+make_hazard <- function(cc, yr = 2019, open = "nmx") {
+  d <- lt[lt$country == cc & lt$year == yr, ]
+  h <- d$nmx
+  if (open == "inv_e85") h[length(h)] <- 1 / d$ex[nrow(d)]
+  function(t) h[findInterval(t, breaks)]
+}
+h_mex <- make_hazard("MEX")
+c(age_22 = h_mex(22), age_62 = h_mex(62), age_82 = h_mex(82))
+```
+
+# Step 4: survival from age 18
+
+$$S_k(t \mid a_0) = \exp\left\{-\int_{a_0}^{t} h_k(v)\,dv\right\} = \exp\left\{-\sum_j h_{kj}\,\Delta_j(t)\right\},$$
+where $\Delta_j(t)$ is the number of years of age group $j$ between $a_0$ and $t$. The sum is exact for a piecewise-constant hazard.
+
+```{r step4}
+make_surv <- function(haz) {
+  function(t, a0) {
+    sapply(t, function(tt) {
+      if (tt <= a0) return(1)
+      knots <- sort(unique(c(a0, breaks[breaks > a0 & breaks < tt], tt)))
+      exp(-sum(haz(knots[-length(knots)]) * diff(knots)))
+    })
+  }
+}
+S_mex <- make_surv(h_mex)
+S_esp <- make_surv(make_hazard("ESP"))
+```
+
+The table below writes out the sum for Mexico term by term (Supplementary Table S2).
+
+```{r step4-table}
+d <- lt[lt$country == "MEX" & lt$year == 2019 & lt$age_start >= 15 & lt$age_start < 80, ]
+years_after_18 <- pmin(d$age_start + 5, 80) - pmax(d$age_start, 18)
+contribution <- d$nmx * years_after_18
+H <- cumsum(contribution)
+tabS2 <- data.frame(age_group = d$age_group, years_after_18, nmx = d$nmx,
+                    contribution, cumulative_hazard = H, to_age = d$age_start + 5,
+                    survival_pct = 100 * exp(-H))
+knitr::kable(tabS2, digits = c(0, 0, 6, 6, 6, 0, 1), row.names = FALSE,
+             caption = "Survival from age 18 in Mexico, 2019, computed term by term")
+```
+
+For example, from 18 to 60 the interval covers 2 years of $[15, 20)$ and 5 years of each group from $[20, 25)$ to $[55, 60)$:
+
+```{r step4-check}
+H60 <- 2 * d$nmx[d$age_start == 15] + 5 * sum(d$nmx[d$age_start >= 20 & d$age_start <= 55])
+H80 <- H60 + 5 * sum(d$nmx[d$age_start >= 60 & d$age_start <= 75])
+c(H60 = H60, S60 = exp(-H60), S60_function = S_mex(60, 18),
+  H80 = H80, S80 = exp(-H80), S80_function = S_mex(80, 18))
+c(Spain_S60 = S_esp(60, 18), Spain_S80 = S_esp(80, 18))
+```
+
+# Step 5: crude penetrance
+
+Let $D$ be age at death from other causes. Assuming $T$ and $D$ are independent, conditioning on onset at age $u$ gives $P(D > u \mid D > a_0) = S_k(u \mid a_0)$, so
+$$C_{ck}(t) = \int_{a_0}^{t} S_k(u \mid a_0)\, g_c(u)\, du = \frac{1}{1 - F_c(a_0)} \int_{a_0}^{t} f_c(u)\, S_k(u \mid a_0)\, du.$$
+Crude lifetime penetrance is $C_{ck}(\infty)$, computed with an upper limit of 130 years.
+
+```{r step5}
+crude_pen <- function(cag, cc, a0 = 18, yr = 2019, open = "nmx", sd_scale = 1, upper = 130) {
+  m <- langbehn(cag, sd_scale)
+  S <- make_surv(make_hazard(cc, yr, open))
+  integrate(function(u) m$pdf(u) * S(u, a0), a0, upper, subdivisions = 2000)$value /
+    (1 - m$cdf(a0))
+}
+c(Mexico = crude_pen(40, "MEX"), Spain = crude_pen(40, "ESP"),
+  gap_points = 100 * (crude_pen(40, "ESP") - crude_pen(40, "MEX")))
+```
+
+Setting $S_k = 1$ recovers net penetrance, so crude penetrance can never exceed net penetrance:
+
+```{r step5-check}
+no_death <- integrate(function(u) m40$pdf(u), a0, 130)$value / (1 - m40$cdf(a0))
+c(crude_without_death = no_death, net_by_130 = net_pen(40, 130))
+```
+
+As a numerical check, a Riemann sum on a grid of 0.001 years gives the same answer:
+
+```{r step5-grid}
+grid_crude <- function(k, cc, a0 = 18, dt = 0.001) {
+  m <- langbehn(k); h <- make_hazard(cc)
+  u <- seq(a0, 130, by = dt)
+  S <- exp(-cumsum(c(0, h(u[-length(u)]) * dt)))
+  sum(m$pdf(u) * S) * dt / (1 - m$cdf(a0))
+}
+100 * c(Mexico = grid_crude(40, "MEX") - crude_pen(40, "MEX"),
+        Spain = grid_crude(40, "ESP") - crude_pen(40, "ESP"))
+```
+
+# Step 6: median age at death and the labeled points in Figure 1
+
+```{r step6}
+med_death <- function(cc) uniroot(function(t) make_surv(make_hazard(cc))(t, 18) - 0.5,
+                                  c(19, 129))$root
+dot <- function(cc) {
+  m <- med_death(cc); S <- make_surv(make_hazard(cc))
+  integrate(function(u) m40$pdf(u) * S(u, 18), 18, m)$value / (1 - m40$cdf(18))
+}
+fig_cc <- c("ESP", "GBR", "BRA", "MEX", "GTM")
+knitr::kable(data.frame(country = fig_cc,
+                        median_age_at_death = sapply(fig_cc, med_death),
+                        crude_by_median_pct = 100 * sapply(fig_cc, dot)),
+             digits = 1, row.names = FALSE)
+```
+
+# Table 1: net and crude penetrance by repeat length and country
+
+```{r table1}
+countries <- c("ESP", "SWE", "GBR", "CAN", "USA", "CHL", "PER", "COL", "ARG", "BRA",
+               "MEX", "SLV", "HND", "GTM")
+cags <- 40:45
+tab1 <- t(sapply(cags, function(k) sapply(countries, function(cc) crude_pen(k, cc))))
+rownames(tab1) <- cags
+knitr::kable(100 * t(tab1), digits = 1,
+             caption = "Crude lifetime penetrance (%) by country (rows) and CAG repeat length (columns)")
+knitr::kable(data.frame(cag = cags, median_onset = sapply(cags, function(k) langbehn(k)$mu),
+                        net_by_75_pct = 100 * sapply(cags, function(k) net_pen(k, 75))),
+             digits = 1, row.names = FALSE, caption = "Onset model by repeat length")
+```
+
+Check against the script output (`code/output/table1.csv`):
+
+```{r table1-check}
+saved <- read.csv("code/output/table1.csv")
+max(abs(as.matrix(saved[, countries]) - tab1))
+```
+
+Crude penetrance at 40 repeats against remaining life expectancy at age 40:
+
+```{r gradient}
+e40 <- sapply(countries, function(cc) lt$ex[lt$country == cc & lt$year == 2019 & lt$age_start == 40])
+knitr::kable(data.frame(country = countries, e40 = e40, crude40_pct = 100 * tab1["40", ])[order(e40), ],
+             digits = 1, row.names = FALSE)
+```
+
+# Sensitivity analyses (Supplementary Table S1)
+
+```{r sensitivity}
+sens <- function(f) sapply(c("MEX", "ESP", "GBR"), function(cc) f(40, cc))
+S1 <- rbind(
+  main               = sens(function(k, cc) crude_pen(k, cc)),
+  hazard_85_inv_e85  = sens(function(k, cc) crude_pen(k, cc, open = "inv_e85")),
+  life_tables_2023   = sens(function(k, cc) crude_pen(k, cc, yr = 2023)),
+  start_age_30       = sens(function(k, cc) crude_pen(k, cc, a0 = 30)),
+  onset_sd_x0.8      = sens(function(k, cc) crude_pen(k, cc, sd_scale = 0.8)),
+  onset_sd_x1.2      = sens(function(k, cc) crude_pen(k, cc, sd_scale = 1.2)))
+S1 <- cbind(100 * S1, gap_ESP_MEX_points = 100 * (S1[, "ESP"] - S1[, "MEX"]))
+knitr::kable(S1, digits = 1, caption = "Crude lifetime penetrance (%) at 40 repeats")
+```
+
+# Global supplementary analysis (Supplementary Figure S1)
+
+The global analysis repeats Step 5 for 201 countries with single-year death rates from the United Nations World Population Prospects 2024 (`code/extract_wpp2024.R`, `code/global_penetrance.R`). The results are read from the saved output here because the full run takes a few seconds per country.
+
+```{r global}
+g <- read.csv("code/output/global_penetrance.csv")
+nrow(g)
+summary(100 * g$crude40)
+g$rank <- rank(g$crude40)
+knitr::kable(g[g$name %in% c("Mexico", "Guatemala", "Spain", "Sweden", "Canada", "Japan",
+                              "China", "India", "United States of America"),
+               c("name", "e40", "crude40", "rank")],
+             digits = 3, row.names = FALSE)
+knitr::kable(read.csv("code/output/global_vs_who.csv"), digits = 3,
+             caption = "Crude penetrance at 40 repeats: UN WPP 2024 against WHO, 14 main countries")
+```
+
+```{r figS1, echo = FALSE, out.width = "85%"}
+knitr::include_graphics("figures/figureS1-global.png")
+```
+
+# Figure 1
+
+```{r fig1, echo = FALSE, out.width = "95%"}
+knitr::include_graphics("figures/figure1-crude-penetrance.png")
+```
+
+# Session information
+
+```{r session}
+sessionInfo()
+```

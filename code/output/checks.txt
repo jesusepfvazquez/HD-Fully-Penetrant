@@ -1,0 +1,55 @@
+Claim: death rates in Mexico exceed those in Spain in every age group (2019)
+      age         MEX         ESP ratio
+1   00-01 0.013836884 0.002700722  5.12
+2   01-04 0.000316040 0.000147764  2.14
+3   05-09 0.000251287 0.000062006  4.05
+4   10-14 0.000300186 0.000085806  3.50
+5   15-19 0.000799375 0.000166558  4.80
+6   20-24 0.001374900 0.000251598  5.46
+7   25-29 0.001689025 0.000304367  5.55
+8   30-34 0.001906844 0.000390641  4.88
+9   35-39 0.002350253 0.000552621  4.25
+10  40-44 0.003109663 0.000810703  3.84
+11  45-49 0.004276004 0.001508596  2.83
+12  50-54 0.005924922 0.002710915  2.19
+13  55-59 0.008813270 0.004358180  2.02
+14  60-64 0.013242823 0.006744448  1.96
+15  65-69 0.019006789 0.009891535  1.92
+16  70-74 0.028213791 0.015201783  1.86
+17  75-79 0.043410903 0.024889489  1.74
+18  80-84 0.071873998 0.048218995  1.49
+19 85PLUS 0.173062683 0.127649490  1.36
+All ages higher in Mexico: TRUE 
+
+Claim: crude penetrance is lowest in Guatemala, Honduras, or El Salvador at every CAG,
+and all three Central American countries are below Mexico at every CAG
+   40    41    42    43    44    45 
+"GTM" "GTM" "SLV" "SLV" "SLV" "SLV" 
+All Central American < Mexico at every CAG: TRUE 
+Mexico rank (1 = lowest) by CAG: 4 4 4 4 4 4 
+
+Claim: crude penetrance at 40 CAG tracks remaining life expectancy at 40
+     e40 crude40
+GTM 35.7   0.749
+HND 35.9   0.754
+SLV 37.3   0.758
+MEX 38.3   0.787
+BRA 38.8   0.801
+ARG 39.1   0.816
+USA 40.7   0.830
+COL 40.8   0.846
+PER 41.6   0.841
+GBR 42.3   0.869
+CHL 42.9   0.863
+CAN 43.4   0.876
+SWE 43.5   0.891
+ESP 43.9   0.890
+Spearman correlation: 0.987 
+
+Claim: net penetrance by 65 for 40 and 50 repeats
+40 CAG: 0.589   50 CAG: 0.9999 
+
+Claim: share of carriers of 40 repeats dying before onset (1 - crude)
+MEX: 0.213 = about 1 in 4.7
+ESP: 0.11 = about 1 in 9.1
+GTM: 0.251 = about 1 in 4

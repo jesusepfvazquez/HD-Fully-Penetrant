@@ -3,6 +3,11 @@ title: "Fully penetrant within whose lifetime? Step-by-step calculations"
 author: "J. E. Vazquez"
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
 output:
+  pdf_document:
+    toc: true
+  github_document:
+    toc: true
+    html_preview: false
   html_document:
     toc: true
     toc_float: true

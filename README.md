@@ -1,8 +1,3 @@
----
-output:
-  pdf_document: default
-  html_document: default
----
 # HD-Fully-Penetrant
 
 Code and tables for the paper *Fully Penetrant Within Whose Lifetime? Background Mortality and the Penetrance of Huntington's Disease Alleles in Mexico and Central America*.
@@ -14,7 +9,7 @@ The paper combines the age-at-onset model of Langbehn et al. (2004) with nationa
 | Path | What it is |
 |---|---|
 | `analysis.md` | Step-by-step walkthrough rendered for GitHub (open this file to read it on the repository page) |
-| `analysis.Rmd` / `analysis.html` / `analysis.pdf` | Step-by-step walkthrough of every calculation, with the worked example for 40 repeats in Mexico, checked against the script outputs |
+| `analysis.Rmd` / `analysis.pdf` | Step-by-step walkthrough of every calculation, with the worked example for 40 repeats in Mexico, checked against the script outputs |
 | `code/crude_penetrance.R` | Main analysis: Table 1, Figure 1, Supplementary Tables S1 and S2, validation, and the LaTeX macros for every number quoted in the paper |
 | `code/global_penetrance.R` | Global analysis for 201 countries (Supplementary Figure S1) |
 | `code/extract_wpp2024.R` | Extracts 2019 single-year death rates from the UN World Population Prospects 2024 (`wpp2024` R package data) |

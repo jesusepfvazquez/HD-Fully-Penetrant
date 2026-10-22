@@ -8,10 +8,6 @@ output:
   github_document:
     toc: true
     html_preview: false
-  html_document:
-    toc: true
-    toc_float: true
-    number_sections: true
 ---
 
 ```{r setup, include = FALSE}

@@ -166,7 +166,7 @@ c(age_22 = h_mex(22), age_62 = h_mex(62), age_82 = h_mex(82))
 
 # Step 4: survival from age 18
 
-$$S_k(t \mid a_0) = \exp\{-\int_{a_0}^{t} h_k(v)\,dv\right\} = \exp\left\{-\sum_j h_{kj}\,\Delta_j(t)\},$$
+$$S_k(t \mid a_0) = \exp\{-\int_{a_0}^{t} h_k(v)\,dv\} = \exp\{-\sum_j h_{kj}\,\Delta_j(t)\},$$
 where $\Delta_j(t)$ is the number of years of age group $j$ between
 $a_0$ and $t$. The sum is exact for a piecewise-constant hazard.
 
